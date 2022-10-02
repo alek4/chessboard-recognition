@@ -7,8 +7,6 @@ import cv2 as cv
 
 
 capture = cv.VideoCapture("Photos/video_board.mp4")
-nline = 8
-ncol = 8
 while True:
     isTrue, frame = capture.read()
 
