@@ -12,11 +12,14 @@ capture = cv2.VideoCapture("photos/video_board.mp4")
 
 
 window_name = 'Square Detect'
-title_trackbarMin = 'Min:'
-title_trackbarMax = 'Max:'
+title_trackbarMin = 'Min'
+title_trackbarMax = 'Max'
 # best is: 3500 - 14000
 min_area = 1000
 max_area = 20000
+
+title_trackbarDelta = 'delta'
+
 
 def rescaleFrame(frame, scale=0.75):
     width = int(frame.shape[1] * scale)
@@ -100,15 +103,16 @@ while True:
                     # cv2.circle(image, (x, y), 5, (255, 0, 0), -1)
                     corners.append((x,y))
 
-
                 i = i + 1
 
     if len(corners) > 0:
 
         corners = sorted(corners, key=lambda k: [k[1], k[0]])
 
-        for idx, pt in enumerate(corners):
-            font = cv2.FONT_HERSHEY_SIMPLEX
+        # corners = sorted(corners)
+
+        # for idx, pt in enumerate(corners):
+        #     font = cv2.FONT_HERSHEY_SIMPLEX
             # cv2.putText(image, str(idx), pt, font, 1, (255, 255, 255), 1, cv2.LINE_AA)
             # print(pt, idx)
 
@@ -117,13 +121,21 @@ while True:
         # del rows[1::2]
         # rows = remove_every_nth(rows, 4)
 
-        for idxR, row in enumerate(rows):
-            for idxC, pt in enumerate(row):
-                # provavo a colorare solo la prima e ultima riga di punti ma non funziona
-                if idxR == 0 and idxR == len(rows) - 1:
-                    cv2.circle(image, pt, 5, (0, 255, 0), -1)
+        even = True
+        for i, row in enumerate(rows[1:-1]):
+            row = sorted(row)
+            for j, pt in enumerate(row):
+                if even:
+                    if j != len(row) - 1:
+                        cv2.circle(image, pt, 5, (255, 255, 0), -1)
+                    else:
+                        cv2.circle(image, pt, 5, (0, 255, 0), -1)
+                else:
+                    cv2.circle(image, pt, 5, (255, 0, 0), -1)
 
-                cv2.circle(image, pt, 5, (255, 0, 0), -1)
+            even = not even
+
+
 
     # cv2.imshow('sharpen', sharpen)
     # cv2.imshow('close', close)
