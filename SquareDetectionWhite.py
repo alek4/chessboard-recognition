@@ -37,6 +37,15 @@ def on_trackbarMax(val):
     max_area = val
 
 
+def slice_per(source, step):
+    return [source[step*i:step*i+step] for i in range(0,math.ceil(len(source)/step))]
+
+
+def remove_every_nth(lst, n):
+    del lst[n-1::n]
+    return lst
+
+
 cv2.namedWindow(window_name)
 cv2.createTrackbar(title_trackbarMin, window_name, min_area, max_area, on_trackbarMin)
 cv2.createTrackbar(title_trackbarMax, window_name, min_area, max_area, on_trackbarMax)
@@ -88,21 +97,33 @@ while True:
 
                     # String containing the co-ordinates.
 
-                    cv2.circle(image, (x, y), 5, (255, 0, 0), -1)
+                    # cv2.circle(image, (x, y), 5, (255, 0, 0), -1)
                     corners.append((x,y))
 
 
                 i = i + 1
 
-    if len(corners)>0:
-        xTuple, yTuple = zip(*corners)
+    if len(corners) > 0:
 
-        xArray = np.asarray(xTuple)
-        yArray = np.asarray(yTuple)
-        xArray.sort()
-        yArray.sort()
+        corners = sorted(corners, key=lambda k: [k[1], k[0]])
 
-        cv2.circle(image, (xArray[7], yArray[0]), 5, (0, 255, 0), -1)
+        for idx, pt in enumerate(corners):
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            # cv2.putText(image, str(idx), pt, font, 1, (255, 255, 255), 1, cv2.LINE_AA)
+            # print(pt, idx)
+
+        rows = slice_per(corners, 8)
+
+        # del rows[1::2]
+        # rows = remove_every_nth(rows, 4)
+
+        for idxR, row in enumerate(rows):
+            for idxC, pt in enumerate(row):
+                # provavo a colorare solo la prima e ultima riga di punti ma non funziona
+                if idxR == 0 and idxR == len(rows) - 1:
+                    cv2.circle(image, pt, 5, (0, 255, 0), -1)
+
+                cv2.circle(image, pt, 5, (255, 0, 0), -1)
 
     # cv2.imshow('sharpen', sharpen)
     # cv2.imshow('close', close)
