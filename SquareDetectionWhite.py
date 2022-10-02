@@ -20,16 +20,6 @@ max_area = 20000
 
 title_trackbarDelta = 'delta'
 
-
-def rescaleFrame(frame, scale=0.75):
-    width = int(frame.shape[1] * scale)
-    height = int(frame.shape[0] * scale)
-
-    dimensions = (width, height)
-
-    return cv2.resize(frame, dimensions, interpolation=cv2.INTER_AREA)
-
-
 def on_trackbarMin(val):
     global min_area
     min_area = val
@@ -48,38 +38,32 @@ def remove_every_nth(lst, n):
     del lst[n-1::n]
     return lst
 
+def computeImage(frame):
+    image = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    se = cv2.getStructuringElement(cv2.MORPH_RECT, (8, 8))
+    bg = cv2.morphologyEx(image, cv2.MORPH_DILATE, se)
+    out_gray = cv2.divide(image, bg, scale=255)
+    out_binary = cv2.threshold(out_gray, 0, 255, cv2.THRESH_OTSU)[1]
+    return out_binary
+
+def computeContours(frame):
+    cnts = cv2.findContours(frame, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    cnts = cnts[0] if len(cnts) == 2 else cnts[1]
+    return cnts
+
 
 cv2.namedWindow(window_name)
 cv2.createTrackbar(title_trackbarMin, window_name, min_area, max_area, on_trackbarMin)
 cv2.createTrackbar(title_trackbarMax, window_name, min_area, max_area, on_trackbarMax)
 
 while True:
-    # Load image, grayscale, median blur, sharpen image
 
     isTrue, image = capture.read()
-    # gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    # blur = cv2.medianBlur(gray, 5)
-    # sharpen_kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
-    # sharpen = cv2.filter2D(blur, -1, sharpen_kernel)
-    #
-    # # Threshold and morph close
-    # thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
-    # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-    # close = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=2)
+    thresh = computeImage(image)
+    contours = computeContours(thresh)
 
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    blur = cv2.GaussianBlur(gray, (5, 5), 0)
-    thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
-
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-    opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=1)
-    invert = 255 - opening
-
-    # Find contours and filter using threshold area
-    cnts = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    cnts = cnts[0] if len(cnts) == 2 else cnts[1]
     corners = []
-    for c in cnts:
+    for c in contours:
         area = cv2.contourArea(c)
 
         if area > min_area and area < max_area:
@@ -107,7 +91,7 @@ while True:
 
     if len(corners) > 0:
 
-        corners = sorted(corners, key=lambda k: [k[1], k[0]])
+        corners = sorted(corners, key=lambda k: [k[1]])
 
         # corners = sorted(corners)
 
@@ -121,25 +105,19 @@ while True:
         # del rows[1::2]
         # rows = remove_every_nth(rows, 4)
 
-        even = True
-        for i, row in enumerate(rows[1:-1]):
+        for i, row in enumerate(rows):
             row = sorted(row)
             for j, pt in enumerate(row):
-                if even:
-                    if j != len(row) - 1:
-                        cv2.circle(image, pt, 5, (255, 255, 0), -1)
-                    else:
-                        cv2.circle(image, pt, 5, (0, 255, 0), -1)
-                else:
-                    cv2.circle(image, pt, 5, (255, 0, 0), -1)
+                cv2.circle(image, pt, 5, (255, 0, 0), -1)
+                cv2.putText(image, str(j), pt, cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 1, cv2.LINE_AA)
 
-            even = not even
+
 
 
 
     # cv2.imshow('sharpen', sharpen)
     # cv2.imshow('close', close)
-    # cv2.imshow('thresh', thresh)
+    cv2.imshow('thresh', thresh)
     img = image[100: 2000, 280: 1620]
     cv2.imshow(window_name, img)
 
