@@ -10,12 +10,21 @@ import cv2
 
 capture = cv2.VideoCapture("photos/video_board.mp4")
 
+
 window_name = 'Square Detect'
 title_trackbarMin = 'Min:'
 title_trackbarMax = 'Max:'
 # best is: 3500 - 14000
 min_area = 1000
 max_area = 20000
+
+def rescaleFrame(frame, scale=0.75):
+    width = int(frame.shape[1] * scale)
+    height = int(frame.shape[0] * scale)
+
+    dimensions = (width, height)
+
+    return cv2.resize(frame, dimensions, interpolation=cv2.INTER_AREA)
 
 
 def on_trackbarMin(val):
@@ -34,6 +43,7 @@ cv2.createTrackbar(title_trackbarMax, window_name, min_area, max_area, on_trackb
 
 while True:
     # Load image, grayscale, median blur, sharpen image
+
     isTrue, image = capture.read()
     # gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     # blur = cv2.medianBlur(gray, 5)
@@ -56,16 +66,17 @@ while True:
     # Find contours and filter using threshold area
     cnts = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     cnts = cnts[0] if len(cnts) == 2 else cnts[1]
-
+    corners = []
     for c in cnts:
         area = cv2.contourArea(c)
+
         if area > min_area and area < max_area:
             # x, y, w, h = cv2.boundingRect(c)
             # cv2.rectangle(image, (x, y), (x + w, y + h), (36, 255, 12), 2)
 
             approx = cv2.approxPolyDP(c, 0.009 * cv2.arcLength(c, True), True)
 
-            cv2.drawContours(image, [approx], 0, (0, 0, 255), 2)
+            # cv2.drawContours(image, [approx], 0, (0, 0, 255), 2)
 
             n = approx.ravel()
             i = 0
@@ -76,16 +87,29 @@ while True:
                     y = n[i + 1]
 
                     # String containing the co-ordinates.
-                    string = str(x) + " " + str(y)
 
                     cv2.circle(image, (x, y), 5, (255, 0, 0), -1)
+                    corners.append((x,y))
+
 
                 i = i + 1
 
+    if len(corners)>0:
+        xTuple, yTuple = zip(*corners)
+
+        xArray = np.asarray(xTuple)
+        yArray = np.asarray(yTuple)
+        xArray.sort()
+        yArray.sort()
+
+        cv2.circle(image, (xArray[7], yArray[0]), 5, (0, 255, 0), -1)
+
     # cv2.imshow('sharpen', sharpen)
     # cv2.imshow('close', close)
-    cv2.imshow('thresh', thresh)
-    cv2.imshow(window_name, image)
+    # cv2.imshow('thresh', thresh)
+    img = image[100: 2000, 280: 1620]
+    cv2.imshow(window_name, img)
+
     # cv2.imshow("Invert", invert)
 
 
