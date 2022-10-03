@@ -11,11 +11,11 @@ capture = cv2.VideoCapture("photos/video_board.mp4")
 
 
 window_name = 'Square Detect'
-title_trackbarMin = 'Min'
-title_trackbarMax = 'Max'
+title_trackbarMin = 'Min Area'
+title_trackbarMax = 'Max Area'
 # best is: 3500 - 14000
-min_area = 1000
-max_area = 50000
+min_area = 3600
+max_area = 20000
 
 title_trackbarDelta = 'delta'
 
@@ -56,6 +56,19 @@ def hasFourVertices(coords):
     else:
         return True
 
+def detectSidesLenght(coords):
+    delta = 25
+    pt1 = coords[0][0]
+    pt2 = coords[1][0]
+    pt3 = coords[2][0]
+    pt4 = coords[3][0]
+
+    sides = [math.dist(pt1, pt2), math.dist(pt2, pt3) , math.dist(pt3, pt4), math.dist(pt4, pt1)]
+
+    return (math.isclose(sides[0], sides[1], abs_tol = delta)
+            and math.isclose(sides[1], sides[2], abs_tol = delta)
+            and math.isclose(sides[2], sides[3], abs_tol = delta)
+            and math.isclose(sides[3], sides[0], abs_tol = delta))
 
 cv2.namedWindow(window_name)
 cv2.createTrackbar(title_trackbarMin, window_name, min_area, max_area, on_trackbarMin)
@@ -78,7 +91,8 @@ while True:
 
 
             if hasFourVertices(approx): #controllo che ci siano almeno 4 angoli
-                cv2.drawContours(image, [approx], 0, (0, 0, 255), 2)
+                if detectSidesLenght(approx):
+                    cv2.drawContours(image, [approx], 0, (0, 0, 255), 2)
 
             n = approx.ravel()
             i = 0
