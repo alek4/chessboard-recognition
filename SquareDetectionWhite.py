@@ -1,5 +1,4 @@
 import math
-
 import numpy as np
 import cv2
 
@@ -16,7 +15,7 @@ title_trackbarMin = 'Min'
 title_trackbarMax = 'Max'
 # best is: 3500 - 14000
 min_area = 1000
-max_area = 20000
+max_area = 50000
 
 title_trackbarDelta = 'delta'
 
@@ -51,77 +50,43 @@ def computeContours(frame):
     cnts = cnts[0] if len(cnts) == 2 else cnts[1]
     return cnts
 
+def hasFourVertices(coords):
+    if len(coords) != 4:
+        return False
+    else:
+        return True
+
 
 cv2.namedWindow(window_name)
 cv2.createTrackbar(title_trackbarMin, window_name, min_area, max_area, on_trackbarMin)
 cv2.createTrackbar(title_trackbarMax, window_name, min_area, max_area, on_trackbarMax)
 
+
 while True:
 
     isTrue, image = capture.read()
     thresh = computeImage(image)
+
     contours = computeContours(thresh)
 
-    corners = []
     for c in contours:
         area = cv2.contourArea(c)
 
         if area > min_area and area < max_area:
-            # x, y, w, h = cv2.boundingRect(c)
-            # cv2.rectangle(image, (x, y), (x + w, y + h), (36, 255, 12), 2)
 
-            approx = cv2.approxPolyDP(c, 0.009 * cv2.arcLength(c, True), True)
+            approx = cv2.approxPolyDP(c, 0.10 * cv2.arcLength(c, True), True) #al posto di 0.009 ho messo 0.10
 
-            # cv2.drawContours(image, [approx], 0, (0, 0, 255), 2)
+
+            if hasFourVertices(approx): #controllo che ci siano almeno 4 angoli
+                cv2.drawContours(image, [approx], 0, (0, 0, 255), 2)
 
             n = approx.ravel()
             i = 0
 
-            for j in n:
-                if i % 2 == 0:
-                    x = n[i]
-                    y = n[i + 1]
 
-                    # String containing the co-ordinates.
-
-                    # cv2.circle(image, (x, y), 5, (255, 0, 0), -1)
-                    corners.append((x,y))
-
-                i = i + 1
-
-    if len(corners) > 0:
-
-        corners = sorted(corners, key=lambda k: [k[1]])
-
-        # corners = sorted(corners)
-
-        # for idx, pt in enumerate(corners):
-        #     font = cv2.FONT_HERSHEY_SIMPLEX
-            # cv2.putText(image, str(idx), pt, font, 1, (255, 255, 255), 1, cv2.LINE_AA)
-            # print(pt, idx)
-
-        rows = slice_per(corners, 8)
-
-        # del rows[1::2]
-        # rows = remove_every_nth(rows, 4)
-
-        for i, row in enumerate(rows):
-            row = sorted(row)
-            for j, pt in enumerate(row):
-                cv2.circle(image, pt, 5, (255, 0, 0), -1)
-                cv2.putText(image, str(j), pt, cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 1, cv2.LINE_AA)
-
-
-
-
-
-    # cv2.imshow('sharpen', sharpen)
-    # cv2.imshow('close', close)
     cv2.imshow('thresh', thresh)
     img = image[100: 2000, 280: 1620]
     cv2.imshow(window_name, img)
-
-    # cv2.imshow("Invert", invert)
 
 
     if cv2.waitKey(20) & 0xFF == ord('d'):
