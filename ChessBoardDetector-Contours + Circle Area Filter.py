@@ -7,7 +7,7 @@ import cv2
 #cv.imshow('Board', img)
 
 
-capture = cv2.VideoCapture("photos/video_board.mp4")
+capture = cv2.VideoCapture("photos/test.mp4")
 
 
 window_name = 'Square Detect'
@@ -28,15 +28,6 @@ def on_trackbarMax(val):
     global max_area
     max_area = val
 
-
-def slice_per(source, step):
-    return [source[step*i:step*i+step] for i in range(0,math.ceil(len(source)/step))]
-
-
-def remove_every_nth(lst, n):
-    del lst[n-1::n]
-    return lst
-
 def computeImage(frame):
     image = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     se = cv2.getStructuringElement(cv2.MORPH_RECT, (8, 8))
@@ -56,32 +47,43 @@ def hasFourVertices(coords):
     else:
         return True
 
-def detectSidesLenght(coords):
-    delta = 25
+def getAspectRatio(coords):
+
+    for data in coords:
+        sorted(data, key=lambda k: [k[1], k[0]])
+
     pt1 = coords[0][0]
     pt2 = coords[1][0]
     pt3 = coords[2][0]
     pt4 = coords[3][0]
 
-    sides = [math.dist(pt1, pt2), math.dist(pt2, pt3) , math.dist(pt3, pt4), math.dist(pt4, pt1)]
+    width = math.dist(pt1, pt2);
+    height = math.dist(pt1, pt3);
+    # sides = [math.dist(pt1, pt2), math.dist(pt2, pt3) , math.dist(pt3, pt4), math.dist(pt4, pt1)]
+    ar = width / float(height)
+    return ar
 
-    return (math.isclose(sides[0], sides[1], abs_tol = delta)
-            and math.isclose(sides[1], sides[2], abs_tol = delta)
-            and math.isclose(sides[2], sides[3], abs_tol = delta)
-            and math.isclose(sides[3], sides[0], abs_tol = delta))
+def digitalizeBoard():
+    print("si")
+
 
 cv2.namedWindow(window_name)
 cv2.createTrackbar(title_trackbarMin, window_name, min_area, max_area, on_trackbarMin)
 cv2.createTrackbar(title_trackbarMax, window_name, min_area, max_area, on_trackbarMax)
 
 
+
 while True:
+
 
     isTrue, image = capture.read()
     thresh = computeImage(image)
 
     contours = computeContours(thresh)
 
+    my_img_1 = np.zeros((image.shape[0], image.shape[1], 1), dtype="uint8")
+
+    valid_contours = []
     for c in contours:
         area = cv2.contourArea(c)
 
@@ -89,18 +91,45 @@ while True:
 
             approx = cv2.approxPolyDP(c, 0.10 * cv2.arcLength(c, True), True) #al posto di 0.009 ho messo 0.10
 
-
             if hasFourVertices(approx): #controllo che ci siano almeno 4 angoli
-                if detectSidesLenght(approx):
-                    cv2.drawContours(image, [approx], 0, (0, 0, 255), 2)
+                ar = getAspectRatio(approx)
 
-            n = approx.ravel()
-            i = 0
+                valid_contours.append(approx)
+                cv2.drawContours(my_img_1, [approx], 0, (255, 255, 255), 2)
+
+                M = cv2.moments(approx)
+                cX = int(M["m10"] / M["m00"])
+                cY = int(M["m01"] / M["m00"])
+                cv2.circle(my_img_1, (cX, cY), 3, (255, 255, 255), -1)
+                    # image = cv2.putText(image, str(round(ar,2)), (cX, cY), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 0, 0) , 2, cv2.LINE_AA)
+
+    try:
+        valid_points = []
+
+        for pointsArray_list in valid_contours:
+            for pointsArray in pointsArray_list:
+                for point in pointsArray:
+                    valid_points.append([point[0], point[1]])
+        sumX = 0
+        sumY = 0
+        for point in valid_points:
+            sumX += point[0]
+            sumY += point[1]
+
+        medianX = int(sumX / len(valid_points))
+        medianY = int(sumY / len(valid_points))
+
+        cv2.circle(my_img_1, (medianX, medianY), 200, (255, 255, 255), 2)
+
+    except:
+        pass
 
 
-    cv2.imshow('thresh', thresh)
-    img = image[100: 2000, 280: 1620]
-    cv2.imshow(window_name, img)
+    # for i in rnge(0, 8):
+
+
+    cv2.imshow('thresh', my_img_1)
+    cv2.imshow(window_name, image)
 
 
     if cv2.waitKey(20) & 0xFF == ord('d'):
