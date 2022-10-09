@@ -7,7 +7,7 @@ import cv2
 #cv.imshow('Board', img)
 
 
-capture = cv2.VideoCapture("photos/Test.mp4")
+capture = cv2.VideoCapture("photos/test.mp4")
 
 
 window_name = 'Square Detect'
@@ -75,14 +75,25 @@ def detectBoardContourMode(image, contours):
                     pass
     return valid_contours
 
+def getMiddlePoint(points):
+    sumX = 0
+    sumY = 0
+    for point in points:
+        sumX += point[0]
+        sumY += point[1]
 
-def checkIfPointIsInsideCircle(center, radius, point):
-    # (x - center_x)² + (y - center_y)² < radius² <-- equation
-    dx = point[0] - center[0]
-    dy = point[1] - center[1]
+    medianX = int(sumX / len(points))
+    medianY = int(sumY / len(points))
 
-    return dx * dx + dy * dy < radius * radius
+    closestPoints = kClosest(points, [medianX, medianY], 4)
 
+    centreOfSquare = []
+    dist = 5
+    while len(centreOfSquare) != 1:
+        centreOfSquare = fuse(closestPoints, dist)
+        dist += 5
+
+    return centreOfSquare
 
 # Calculate the Euclidean distance
 # between two points
@@ -112,10 +123,7 @@ def kClosest(points, target, K):
 
     return pts
 
-radius = 0
-pointsInsideCircle = 0
-def applyCircleAreaFilter(image, contours):
-    global radius, pointsInsideCircle
+def applySquareAreaFilter(image, contours):
     try:
         valid_points = []
 
@@ -123,27 +131,80 @@ def applyCircleAreaFilter(image, contours):
             for pointsArray in pointsArray_list:
                 for point in pointsArray:
                     valid_points.append([point[0], point[1]])
-        sumX = 0
-        sumY = 0
-        for point in valid_points:
-            sumX += point[0]
-            sumY += point[1]
 
-        medianX = int(sumX / len(valid_points))
-        medianY = int(sumY / len(valid_points))
+        centreOfImage = getMiddlePoint(valid_points)
+        # CTC = Closest To Centre
+        xCentre = int(centreOfImage[0][0])
+        yCentre = int(centreOfImage[0][1])
 
-        # for point in valid_points:
-        #     if pointsInsideCircle <= 64:
-        #         while not checkIfPointIsInsideCircle((medianX, medianY), radius, point):
-        #             radius += 10
-        #
-        #         pointsInsideCircle += 1
+        cv2.circle(image, (xCentre, yCentre), 5, (0, 0, 255), -1)
 
-        closestPoints = kClosest(valid_points, [medianX, medianY], 256)
+        pointsCTC = kClosest(valid_points, centreOfImage[0], 36)
 
-        cv2.circle(image, (medianX, medianY), int(distance(medianX, medianY, closestPoints[-1][0], closestPoints[-1][1])), (255, 255, 255), 2)
+        fusedPointsCTC = fuse(pointsCTC, 20) #da sistemare il 20
+
+        fixedPointsCTC = kClosest(fusedPointsCTC, centreOfImage[0], 9)
+
+        for point in fixedPointsCTC:
+            x = int(point[0])
+            y = int(point[1])
+            cv2.circle(image, (x, y), 3, (0, 255, 255), -1)
+
+        fixedPointsCTC = sorted(fixedPointsCTC , key=lambda k: k[1])
+        list1, list2 = fixedPointsCTC[:3], fixedPointsCTC[6:]
+
+        list1 = sorted(list1 , key=lambda k: k[0])
+        list2 = sorted(list2 , key=lambda k: k[0])
+
+        xA = int(4 * list1[2][0] - 3 * xCentre)
+        yA = int(4 * list1[2][1] - 3 * yCentre)
+        vertexA = (xA, yA)
+
+        xB = int(4 * list1[0][0] - 3 * xCentre)
+        yB = int(4 * list1[0][1] - 3 * yCentre)
+        vertexB = (xB, yB)
+
+        xC = int(5 * list2[0][0] - 4 * xCentre)
+        yC = int(5 * list2[0][1] - 4 * yCentre)
+        vertexC = (xC, yC)
+
+        xD = int(5 * list2[2][0] - 4 * xCentre)
+        yD = int(5 * list2[2][1] - 4 * yCentre)
+        vertexD = (xD, yD)
+
+        cv2.circle(image, vertexA, 5, (0, 0, 255), -1)
+        cv2.circle(image, vertexB, 5, (0, 0, 255), -1)
+        cv2.circle(image, vertexC, 5, (0, 0, 255), -1)
+        cv2.circle(image, vertexD, 5, (0, 0, 255), -1)
+
+        return fusedPointsCTC
+
     except Exception as e:
         print(e)
+
+def dist2(p1, p2):
+    return (p1[0]-p2[0])**2 + (p1[1]-p2[1])**2
+
+def fuse(points, d):
+    ret = []
+    d2 = d * d
+    n = len(points)
+    taken = [False] * n
+    for i in range(n):
+        if not taken[i]:
+            count = 1
+            point = [points[i][0], points[i][1]]
+            taken[i] = True
+            for j in range(i+1, n):
+                if dist2(points[i], points[j]) < d2:
+                    point[0] += points[j][0]
+                    point[1] += points[j][1]
+                    count+=1
+                    taken[j] = True
+            point[0] /= count
+            point[1] /= count
+            ret.append((point[0], point[1]))
+    return ret
 
 
 cv2.namedWindow(window_name)
@@ -161,7 +222,9 @@ while True:
 
     valid_contours = detectBoardContourMode(my_img_1, contours)
 
-    applyCircleAreaFilter(my_img_1, valid_contours)
+    ciao = applySquareAreaFilter(image, valid_contours)
+
+    # applySquareAreaFilter(my_img_1, valid_contours)
 
     cv2.imshow('thresh', my_img_1)
     cv2.imshow(window_name, image)
