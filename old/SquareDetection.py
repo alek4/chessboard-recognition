@@ -8,7 +8,7 @@ import cv2
 #cv.imshow('Board', img)
 
 
-capture = cv2.VideoCapture("photos/video_board.mp4")
+capture = cv2.VideoCapture(0)
 
 window_name = 'Square Detect'
 title_trackbarMin = 'Min:'

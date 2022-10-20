@@ -6,7 +6,7 @@ import cv2 as cv
 #cv.imshow('Board', img)
 
 
-capture = cv.VideoCapture("Photos/video_board.mp4")
+capture = cv.VideoCapture(0)
 while True:
     isTrue, frame = capture.read()
 

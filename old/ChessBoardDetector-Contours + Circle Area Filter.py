@@ -2,10 +2,6 @@ import math
 import numpy as np
 import cv2
 
-#img = cv.imread('Photos/board.jpg')
-
-#cv.imshow('Board', img)
-
 
 capture = cv2.VideoCapture(0)
 
@@ -29,14 +25,24 @@ def on_trackbarMax(val):
     global max_area
     max_area = val
 
-
 def computeImage(frame):
     image = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    se = cv2.getStructuringElement(cv2.MORPH_RECT, (8, 8))
+    # image = cv2.bilateralFilter(image,9,75,75)
+
+    se = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
     bg = cv2.morphologyEx(image, cv2.MORPH_DILATE, se)
     out_gray = cv2.divide(image, bg, scale=255)
     out_binary = cv2.threshold(out_gray, 0, 255, cv2.THRESH_OTSU)[1]
-    return out_binary
+
+    blank = np.zeros((frame.shape[0], frame.shape[1], 1), dtype="uint8")
+
+    contours1, hierarchy = cv2.findContours(out_binary, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+
+    cv2.drawContours(blank, contours1, -1, (255, 255, 255), 3)
+
+    cv2.imshow('Frame3', blank)
+
+    return blank
 
 
 def computeContours(frame):
@@ -53,7 +59,7 @@ def hasFourVertices(coords):
         return True
 
 
-def detectBoardSquares(image, contours, boardContour):
+def detectBoardSquares(image, contours, boardContour, isFilterWorking):
     valid_contours = []
 
     for c in contours:
@@ -64,25 +70,29 @@ def detectBoardSquares(image, contours, boardContour):
             approx = cv2.approxPolyDP(c, 0.10 * cv2.arcLength(c, True), True)  # al posto di 0.009 ho messo 0.10
 
             if hasFourVertices(approx):  # controllo che ci siano almeno 4 angoli
-                valid_contours.append(approx)
-                cv2.drawContours(image, [approx], 0, (255, 255, 255), 2)
 
                 M = cv2.moments(approx)
 
                 try:
                     cX = int(M["m10"] / M["m00"])
                     cY = int(M["m01"] / M["m00"])
-                    cv2.circle(image, (cX, cY), 3, (255, 255, 255), -1)
+
+                    if isFilterWorking:
+                        if cv2.pointPolygonTest(boardContour[0], (cX, cY), False) == 1:
+                            valid_contours.append(approx)
+                            cv2.drawContours(image, [approx], 0, (255, 255, 255), 2)
+                            cv2.circle(image, (cX, cY), 3, (255, 255, 255), -1)
+                    else:
+                        valid_contours.append(approx)
+                        cv2.drawContours(image, [approx], 0, (255, 255, 255), 2)
+                        cv2.circle(image, (cX, cY), 3, (255, 255, 255), -1)
+
+
                 except:
                     pass
-    valid_points = []
-    for pointsArray_list in valid_contours:
-        for pointsArray in pointsArray_list:
-            for point in pointsArray:
-                valid_points.append([point[0], point[1]])
-
 
     return valid_contours
+
 
 def getMiddlePoint(points):
     sumX = 0
@@ -298,22 +308,25 @@ def isFilterWorking(image, valid_contours, boardContour):
 
         for c in valid_contours:
 
-            M = cv2.moments(c)
+            try:
+                M = cv2.moments(c)
 
-            cX = int(M["m10"] / M["m00"])
-            cY = int(M["m01"] / M["m00"])
+                cX = int(M["m10"] / M["m00"])
+                cY = int(M["m01"] / M["m00"])
 
-            if cv2.pointPolygonTest(boardContour[0], (cX,cY), False) == 1:
+                if cv2.pointPolygonTest(boardContour[0], (cX,cY), False) == 1:
 
-                valid_contours_filtered.append(c)
-                count += 1
+                    valid_contours_filtered.append(c)
+                    count += 1
+            except:
+                pass
 
-        if count == 64:
+        if  60 <= count <= 64:
             return True, valid_contours_filtered
         else:
             return False, valid_contours_filtered
     except Exception as e:
-        # print(e)
+        print(e)
         return False, valid_contours_filtered
 
 def upgradeSquareAreaFilter(image, valid_contours):
@@ -341,22 +354,23 @@ def upgradeSquareAreaFilter(image, valid_contours):
 
     return boardContour
 
-
 cv2.namedWindow(window_name)
 cv2.createTrackbar(title_trackbarMin, window_name, min_area, max_area, on_trackbarMin)
 cv2.createTrackbar(title_trackbarMax, window_name, min_area, max_area, on_trackbarMax)
 filterArea = 0
 boardContour = []
+isWorking = False
 while True:
 
     isTrue, image = capture.read()
+
     thresh = computeImage(image)
 
     contours = computeContours(thresh)
 
     my_img_1 = np.zeros((image.shape[0], image.shape[1], 1), dtype="uint8")
 
-    valid_contours = detectBoardSquares(my_img_1, contours, boardContour)
+    valid_contours = detectBoardSquares(my_img_1, contours, boardContour, isWorking)
 
     isWorking, valid_contours_filtered = isFilterWorking(image, valid_contours, boardContour)
     if(isWorking == False):

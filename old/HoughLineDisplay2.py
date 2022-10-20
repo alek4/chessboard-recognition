@@ -1,13 +1,11 @@
 import numpy as np
 import cv2
 
-capture = cv2.VideoCapture("photos/video_board.mp4")
+capture = cv2.VideoCapture(0)
 
 while True:
     # Load image, grayscale, median blur, sharpen image
     isTrue, img = capture.read()
-
-    img = img[100: 2000, 280: 1620]
 
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
