@@ -1,17 +1,13 @@
 import numpy as np
 import cv2
-from scipy.spatial import distance as dist
 import imutils
 from imutils import perspective
-import math
-from collections import defaultdict
-
-# img = cv.imread('Photos/board.jpg')
-
-# cv.imshow('Board', img)
 
 
 def computeImage(frame):
+    # This function is used to compute the image for helping FindChessBoardCorners in finding the chess board pattern
+    # pyrDown and pyrUp are used for downscaling and upscaling the image, this helps a bit in removing noises
+    # then we perform a gray color conversion which is required by FindChessBoardCorners
     pyr = cv2.pyrDown(frame, (frame.shape[1] / 2, frame.shape[0] / 2))
     pyr = cv2.pyrUp(pyr, (frame.shape[1], frame.shape[0]))
     gray = cv2.cvtColor(pyr, cv2.COLOR_BGR2GRAY)
@@ -19,46 +15,13 @@ def computeImage(frame):
     return gray
 
 
-def computeImage2(frame):
-    image = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    # image = cv2.bilateralFilter(image,9,75,75)
-
-    se = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
-    bg = cv2.morphologyEx(image, cv2.MORPH_DILATE, se)
-    out_gray = cv2.divide(image, bg, scale=255)
-    out_binary = cv2.threshold(out_gray, 0, 255, cv2.THRESH_OTSU)[1]
-
-    blank = np.zeros((frame.shape[0], frame.shape[1], 1), dtype="uint8")
-
-    contours1, hierarchy = cv2.findContours(out_binary, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
-
-    cv2.drawContours(blank, contours1, -1, (255, 255, 255), 3)
-
-    cv2.imshow('Frame3', blank)
-
-    return out_binary
-
-
-def getApproximatedCentrePoint(points):
-    sumX = 0
-    sumY = 0
-
-    for point in points:
-        x, y = point.ravel()
-        sumX += x
-        sumY += y
-
-    medianX = int(sumX / (len(points)))
-    medianY = int(sumY / (len(points)))
-
-    return [medianX, medianY]
-
-
 def distance(x1, y1, x2, y2):
+    # A simple euclidean distance function, given 2 points's coordinates it returns the distance between them
     return ((x1 - x2) ** 2 + (y1 - y2) ** 2) ** (1 / 2)
 
 
 def kClosest(points, target, K):
+    # This function, given a list of points, returns the k points closest to a target point.
     pts = []
     n = len(points)
     d = []
@@ -80,23 +43,73 @@ def kClosest(points, target, K):
     return pts
 
 
-def order_points2(pts):
-    # https://pyimagesearch.com/2016/03/21/ordering-coordinates-clockwise-with-python-and-opencv/
-    xSorted = pts[np.argsort(pts[:, 0]), :]
+def getInnerVertices(corners):
+    # This function aims to find the inner vertices of the board from the list of corners found by
+    # FindChessBoardCorners. By "inner vertices" we mean the vertices of the 6x6 square inscribed in a 8x8 chess board
+    # https://imgur.com/a/aYAjBLj
 
-    leftMost = xSorted[:2, :]
-    rightMost = xSorted[2:, :]
+    # We start by connecting each single point of the list to the others with a white line.
+    # By drawing all of these lines, we'll have a white rectangle as a result.
+    # Then we ask to findContours function to detect the white rectangle's contour
 
-    leftMost = leftMost[np.argsort(leftMost[:, 1]), :]
-    (tl, bl) = leftMost
+    blank = np.zeros((frame.shape[0], frame.shape[1], 1), dtype="uint8")  # blank single channel image
+    for i, point in enumerate(corners):
+        for j, point in enumerate(corners[:-1]):
+            cv2.line(blank, (int(point.ravel()[0]), int(point.ravel()[1])),
+                     (int(corners[i].ravel()[0]), int(corners[i].ravel()[1])),
+                     (255, 255, 255), 3)
+    contours, hierarchy = cv2.findContours(blank, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    D = dist.cdist(tl[np.newaxis], rightMost, "euclidean")[0]
-    (br, tr) = rightMost[np.argsort(D)[::-1], :]
+    # Once we have the contour we can approximate it in order to find his 4 vertices:
+    #  tl (top left), tr (top right), br (bottom right) and bl (bottom left)
+
+    vertices = []
+    for c in contours:
+        approx = cv2.approxPolyDP(c, 0.009 * cv2.arcLength(c, True), True)
+        n = approx.ravel()
+        i = 0
+        for _ in n:
+            if (i % 2 == 0):
+                x = n[i]
+                y = n[i + 1]
+
+                vertices.append([x, y])
+
+            i = i + 1
+    # Thanks to imutils's order_points function, we have our 4 innerVertices sorted in a clockwise order.
+        (tl, tr, br, bl) = imutils.perspective.order_points(np.asarray(vertices))
+
+    # Due to integer approximations we don't have the actual corners found by FindChessBoardCorners
+    # So we have to find the closest actual points to our approximated vertices
+    # this can be accomplished by kClosest function
+    tl = kClosest(corners.tolist(), tl, 1)[0]
+    tr = kClosest(corners.tolist(), tr, 1)[0]
+    br = kClosest(corners.tolist(), br, 1)[0]
+    bl = kClosest(corners.tolist(), bl, 1)[0]
 
     return tl, tr, br, bl
 
 
+
+def create7x7CornersMatrix(array):
+    # This function converts a numpy array of shape (49,2) into a 7x7 numpy matrix of tuples
+    array = array.reshape(7, 7, 2)
+    cornersMatrix_list = array.tolist()
+
+    cornersMatrix = np.empty((7, 7), object)
+
+    for row in range(0, 7):
+        for column in range(0, 7):
+            x = cornersMatrix_list[row][column][0]
+            y = cornersMatrix_list[row][column][1]
+            cornersMatrix[row][column] = (x, y)
+
+    return cornersMatrix
+
+
 def getInnerChilds(x, y):
+
+    # https://imgur.com/gallery/LnnpLlE
     match (x, y):
         case (6, 6):
             return 5, 5
@@ -110,43 +123,7 @@ def getInnerChilds(x, y):
     return -1, -1
 
 
-def getInnerVertices(corners):
-    blank = np.zeros((frame.shape[0], frame.shape[1], 1), dtype="uint8")
-    for i, point in enumerate(corners):
-        for j, point in enumerate(corners[:-1]):
-            cv2.line(blank, (int(point.ravel()[0]), int(point.ravel()[1])),
-                     (int(corners[i].ravel()[0]), int(corners[i].ravel()[1])),
-                     (255, 255, 255), 3)
-    contours, hierarchy = cv2.findContours(blank, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    # big_contour = max(contours, key=cv2.contourArea)
-
-    vertices = []
-    for c in contours:
-        approx = cv2.approxPolyDP(c, 0.009 * cv2.arcLength(c, True), True)
-        n = approx.ravel()
-        i = 0
-        for j in n:
-            if (i % 2 == 0):
-                x = n[i]
-                y = n[i + 1]
-
-                vertices.append([x, y])
-
-            i = i + 1
-
-
-        (tl, tr, br, bl) = imutils.perspective.order_points(np.asarray(vertices))
-
-
-    tl = kClosest(corners.tolist(), tl, 1)
-    tr = kClosest(corners.tolist(), tr, 1)
-    br = kClosest(corners.tolist(), br, 1)
-    bl = kClosest(corners.tolist(), bl, 1)
-
-    return (tl[0], tr[0], br[0], bl[0])
-
-
-def getOuterVertices(cornersMatrix):
+def getOuterVertices(cornersMatrix, tl, tr, br, bl):
     parentTL = parentTR = parentBR = parentBL = -1
 
     for row in range(0, 7):
@@ -168,6 +145,7 @@ def getOuterVertices(cornersMatrix):
 
     return parentTL, parentTR, parentBR, parentBL
 
+
 def find(target, cornersMatrix):
     for row in range(0, 7):
         for column in range(0, 7):
@@ -178,32 +156,18 @@ def find(target, cornersMatrix):
     return (None, None)
 
 
-def createCornersMatrix(array):
-    cornersMatrix_list = array.tolist()
 
-    cornersMatrix = np.empty((7, 7), object)
-
-    for idx in np.ndindex(7, 7):
-        cornersMatrix[idx] = idx
-
-    for row in range(0, 7):
-        for column in range(0, 7):
-            x = cornersMatrix_list[row][column][0]
-            y = cornersMatrix_list[row][column][1]
-            cornersMatrix[row][column] = (x, y)
-
-    return cornersMatrix
 
 def extend_line(p1, p2, distance=10000):
     diff = np.arctan2(p1[1] - p2[1], p1[0] - p2[0])
-    p3_x = int(p1[0] + distance*np.cos(diff))
-    p3_y = int(p1[1] + distance*np.sin(diff))
-    p4_x = int(p1[0] - distance*np.cos(diff))
-    p4_y = int(p1[1] - distance*np.sin(diff))
+    p3_x = int(p1[0] + distance * np.cos(diff))
+    p3_y = int(p1[1] + distance * np.sin(diff))
+    p4_x = int(p1[0] - distance * np.cos(diff))
+    p4_y = int(p1[1] - distance * np.sin(diff))
     return ((p3_x, p3_y), (p4_x, p4_y))
 
-def getLines(frame, cornersMatrix, tl, tr, br ,bl, innerTL):
 
+def getLines(frame, cornersMatrix, tl, tr, br, bl, innerTL):
     horizonalLines = []
     verticalLines = []
     innerTL = (innerTL[0], innerTL[1])
@@ -237,6 +201,7 @@ def getLines(frame, cornersMatrix, tl, tr, br ,bl, innerTL):
 
     return horizonalLines, verticalLines
 
+
 def line_intersection(line1, line2):
     xdiff = (line1[0][0] - line1[1][0], line2[0][0] - line2[1][0])
     ydiff = (line1[0][1] - line1[1][1], line2[0][1] - line2[1][1])
@@ -246,7 +211,7 @@ def line_intersection(line1, line2):
 
     div = det(xdiff, ydiff)
     if div == 0:
-       raise Exception('lines do not intersect')
+        raise Exception('lines do not intersect')
 
     d = (det(*line1), det(*line2))
     x = det(d, xdiff) / div
@@ -263,7 +228,6 @@ font = cv2.FONT_HERSHEY_COMPLEX
 while True:
     isTrue, frame = capture.read()
 
-    ## termination criteria
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 
     imgFiltered = computeImage(frame)
@@ -272,20 +236,17 @@ while True:
 
     if ret:
 
-        corners2 = cv2.cornerSubPix(imgFiltered, corners, (11, 11), (-1, -1), criteria)
-        corners2_int = corners2.astype(int)
-        corners_final = corners2_int.reshape(49, 2)
+        corners = cv2.cornerSubPix(imgFiltered, corners, (11, 11), (-1, -1), criteria)
+        corners_int = corners.astype(int)
+        corners_final = corners_int.reshape(49, 2)
 
         try:
             (tl, tr, br, bl) = getInnerVertices(corners_final)
             innerTL = tl
-        except:
-            pass
 
-        cornersMatrix = createCornersMatrix(corners_final.reshape(7, 7, 2))
+            cornersMatrix = create7x7CornersMatrix(corners_final)
 
-        try:
-            (tl, tr, br, bl) = getOuterVertices(cornersMatrix)
+            (tl, tr, br, bl) = getOuterVertices(cornersMatrix, tl, tr, br, bl)
             blank = np.zeros((frame.shape[0], frame.shape[1], 1), dtype="uint8")
             horizontalLines, verticalLines = getLines(blank, cornersMatrix, tl, tr, br, bl, innerTL)
 
@@ -297,24 +258,19 @@ while True:
                     except:
                         pass
 
-
             for point in intersections:
-                print((int(point[0]), int(point[1])))
                 cv2.circle(frame, (int(point[0]), int(point[1])), 5, (255, 0, 0), -1)
 
-
-
+                # for row in range(0, 7):
+                #     for column in range(0, 7):
+                #         x = cornersMatrix[row][column][0]
+                #         y = cornersMatrix[row][column][1]
+                #         cv2.circle(frame, (x, y), 5, (255, 0, 0), -1)
+                #         cv2.putText(frame, "(" + str(row) + "," + str(column) + ")",
+                #                     (cornersMatrix[row][column][0], cornersMatrix[row][column][1]), font, 0.5, (0, 0, 0), 2,
+                #                     cv2.LINE_AA)
         except Exception as e:
             print(e)
-
-        # for row in range(0, 7):
-        #     for column in range(0, 7):
-        #         x = cornersMatrix[row][column][0]
-        #         y = cornersMatrix[row][column][1]
-        #         cv2.circle(frame, (x, y), 5, (255, 0, 0), -1)
-        #         cv2.putText(frame, "(" + str(row) + "," + str(column) + ")",
-        #                     (cornersMatrix[row][column][0], cornersMatrix[row][column][1]), font, 0.5, (0, 0, 0), 2,
-        #                     cv2.LINE_AA)
 
     # cv2.imshow('imgFiltered', blank)
     cv2.imshow('Frame', frame)
