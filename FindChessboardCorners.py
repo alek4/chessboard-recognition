@@ -5,7 +5,7 @@ from imutils import perspective
 
 
 def computeImage(frame):
-    # This function is used to compute the image for helping FindChessBoardCorners in finding the chess board pattern
+    # This function is used to compute the image to help FindChessBoardCorners find the chess board pattern
     # pyrDown and pyrUp are used for downscaling and upscaling the image, this helps a bit in removing noises
     # then we perform a gray color conversion which is required by FindChessBoardCorners
     pyr = cv2.pyrDown(frame, (frame.shape[1] / 2, frame.shape[0] / 2))
@@ -46,7 +46,7 @@ def kClosest(points, target, K):
 def getInnerVertices(corners):
     # This function aims to find the inner vertices of the board from the list of corners found by
     # FindChessBoardCorners. By "inner vertices" we mean the vertices of the 6x6 square inscribed in a 8x8 chess board
-    # https://imgur.com/a/aYAjBLj
+    # https://imgbox.com/nBAbWjw3
 
     # We start by connecting each single point of the list to the others with a white line.
     # By drawing all of these lines, we'll have a white rectangle as a result.
@@ -107,9 +107,11 @@ def create7x7CornersMatrix(array):
     return cornersMatrix
 
 
-def getInnerChilds(x, y):
-
-    # https://imgur.com/gallery/LnnpLlE
+def getChildVertices(x, y):
+    # This function returns the fixed coordinates of the inner's child vertices. This is required cause of the fact that
+    # FindChessBoardCorners sometimes sorts points by column or by row so the correct position in the matrix
+    # depends on that
+    # https://imgbox.com/LcGVFRLq
     match (x, y):
         case (6, 6):
             return 5, 5
@@ -124,6 +126,12 @@ def getInnerChilds(x, y):
 
 
 def getOuterVertices(cornersMatrix, tl, tr, br, bl):
+
+    # Once we found our Inner and Child vertices, we are able to calculate their distance and replicate it in order to
+    # find the related Parent vertices.
+    # https://imgbox.com/PU4OPgyT
+
+    #https://imgbox.com/PU4OPgyT
     parentTL = parentTR = parentBR = parentBL = -1
 
     for row in range(0, 7):
@@ -131,32 +139,19 @@ def getOuterVertices(cornersMatrix, tl, tr, br, bl):
             x = cornersMatrix[row][column][0]
             y = cornersMatrix[row][column][1]
             if x == tl[0] and y == tl[1]:
-                xChild, yChild = getInnerChilds(row, column)
+                xChild, yChild = getChildVertices(row, column)
                 parentTL = ((2 * x - cornersMatrix[xChild][yChild][0]), (2 * y - cornersMatrix[xChild][yChild][1]))
             elif x == tr[0] and y == tr[1]:
-                xChild, yChild = getInnerChilds(row, column)
+                xChild, yChild = getChildVertices(row, column)
                 parentTR = ((2 * x - cornersMatrix[xChild][yChild][0]), (2 * y - cornersMatrix[xChild][yChild][1]))
             elif x == br[0] and y == br[1]:
-                xChild, yChild = getInnerChilds(row, column)
+                xChild, yChild = getChildVertices(row, column)
                 parentBR = ((2 * x - cornersMatrix[xChild][yChild][0]), (2 * y - cornersMatrix[xChild][yChild][1]))
             elif x == bl[0] and y == bl[1]:
-                xChild, yChild = getInnerChilds(row, column)
+                xChild, yChild = getChildVertices(row, column)
                 parentBL = ((2 * x - cornersMatrix[xChild][yChild][0]), (2 * y - cornersMatrix[xChild][yChild][1]))
 
     return parentTL, parentTR, parentBR, parentBL
-
-
-def find(target, cornersMatrix):
-    for row in range(0, 7):
-        for column in range(0, 7):
-            x = cornersMatrix[row][column][0]
-            y = cornersMatrix[row][column][1]
-            if x == target[0] and y == target[1]:
-                return (row, column)
-    return (None, None)
-
-
-
 
 def extend_line(p1, p2, distance=10000):
     diff = np.arctan2(p1[1] - p2[1], p1[0] - p2[0])
