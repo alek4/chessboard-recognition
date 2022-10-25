@@ -154,6 +154,7 @@ def getOuterVertices(cornersMatrix, tl, tr, br, bl):
     return parentTL, parentTR, parentBR, parentBL
 
 def extend_line(p1, p2, distance=10000):
+    # This function extends a line for a given distance
     diff = np.arctan2(p1[1] - p2[1], p1[0] - p2[0])
     p3_x = int(p1[0] + distance * np.cos(diff))
     p3_y = int(p1[1] + distance * np.sin(diff))
@@ -163,26 +164,27 @@ def extend_line(p1, p2, distance=10000):
 
 
 def getLines(frame, cornersMatrix, tl, tr, br, bl, innerTL):
+    # Thanks to this function we are able to determine the vertical and horizontal lines of the chess board
+    # It is necessary to divide them in order to find the intersections
+    # innerTL is required as we need to know how FindChessBoardCorners sorted the found corners (by column or by row)
     horizonalLines = []
     verticalLines = []
     innerTL = (innerTL[0], innerTL[1])
 
-    horizonalLines.append([tl, tr])
-    verticalLines.append([tl, bl])
-    horizonalLines.append([bl, br])
-    verticalLines.append([br, tr])
+    # here we divide the chess board's borders based on innerTL indexes in the cornersMatrix -> This solution sucks
 
     if cornersMatrix[6][0] == innerTL:
         verticalLines.append([tl, tr])
         horizonalLines.append([tl, bl])
         verticalLines.append([bl, br])
         horizonalLines.append([br, tr])
+    else:
+        horizonalLines.append([tl, tr])
+        verticalLines.append([tl, bl])
+        horizonalLines.append([bl, br])
+        verticalLines.append([br, tr])
 
-    cv2.line(frame, tl, tr, (255, 255, 255), 2)
-    cv2.line(frame, tl, bl, (255, 255, 255), 2)
-    cv2.line(frame, bl, br, (255, 255, 255), 2)
-    cv2.line(frame, br, tr, (255, 255, 255), 2)
-
+    # then we gather the other lines and we divide them
     for i in range(0, 7):
         pt1, pt2 = extend_line(cornersMatrix[i][0], cornersMatrix[i][6])
         pt3, pt4 = extend_line(cornersMatrix[0][i], cornersMatrix[6][i])
@@ -192,12 +194,18 @@ def getLines(frame, cornersMatrix, tl, tr, br, bl, innerTL):
         horizonalLines.append([pt1, pt2])
         verticalLines.append([pt3, pt4])
 
+    cv2.line(frame, tl, tr, (255, 255, 255), 2)
+    cv2.line(frame, tl, bl, (255, 255, 255), 2)
+    cv2.line(frame, bl, br, (255, 255, 255), 2)
+    cv2.line(frame, br, tr, (255, 255, 255), 2)
+
     cv2.imshow('Frame2', frame)
 
     return horizonalLines, verticalLines
 
 
 def line_intersection(line1, line2):
+    # This function returns whether 2 lines intersect or not
     xdiff = (line1[0][0] - line1[1][0], line2[0][0] - line2[1][0])
     ydiff = (line1[0][1] - line1[1][1], line2[0][1] - line2[1][1])
 
@@ -267,7 +275,6 @@ while True:
         except Exception as e:
             print(e)
 
-    # cv2.imshow('imgFiltered', blank)
     cv2.imshow('Frame', frame)
 
     if (cv2.waitKey(20) & 0xFF == ord('d')):
@@ -276,4 +283,3 @@ while True:
 capture.release()
 cv2.destroyAllWindows()
 
-# cv.waitKey(0) #aspetta un tasto per l'imput
