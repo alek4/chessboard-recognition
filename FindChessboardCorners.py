@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 import imutils
 from imutils import perspective
+import PySimpleGUI as sg
 
 
 def computeImage(frame):
@@ -189,18 +190,18 @@ def getLines(frame, cornersMatrix, tl, tr, br, bl, innerTL):
     for i in range(0, 7):
         pt1, pt2 = extend_line(cornersMatrix[i][0], cornersMatrix[i][6])
         pt3, pt4 = extend_line(cornersMatrix[0][i], cornersMatrix[6][i])
-        cv2.line(frame, pt1, pt2, (255, 255, 255), 2)
-        cv2.line(frame, pt3, pt4, (255, 255, 255), 2)
+        # cv2.line(frame, pt1, pt2, (255, 255, 255), 2)
+        # cv2.line(frame, pt3, pt4, (255, 255, 255), 2)
 
         horizonalLines.append([pt1, pt2])
         verticalLines.append([pt3, pt4])
 
-    cv2.line(frame, tl, tr, (255, 255, 255), 2)
-    cv2.line(frame, tl, bl, (255, 255, 255), 2)
-    cv2.line(frame, bl, br, (255, 255, 255), 2)
-    cv2.line(frame, br, tr, (255, 255, 255), 2)
-
-    cv2.imshow('Frame2', frame)
+    # cv2.line(frame, tl, tr, (255, 255, 255), 2)
+    # cv2.line(frame, tl, bl, (255, 255, 255), 2)
+    # cv2.line(frame, bl, br, (255, 255, 255), 2)
+    # cv2.line(frame, br, tr, (255, 255, 255), 2)
+    #
+    # cv2.imshow('Frame2', frame)
 
     return horizonalLines, verticalLines
 
@@ -241,6 +242,20 @@ capture = cv2.VideoCapture(0)
 nline = 7
 ncol = 7
 font = cv2.FONT_HERSHEY_COMPLEX
+
+sg.theme('Black')
+
+# define the window layout
+layout = [[sg.Text('Board detection', size=(40, 1), justification='center', font='Helvetica 20')],
+          [sg.Image(filename='', key='image')],
+           [sg.Button('Capture board', size=(13, 1), font='Any 14'),
+           sg.Button('Exit', size=(10, 1), font='Helvetica 14'), ]]
+
+# create the window and show it without the plot
+window = sg.Window('Chess board detection system',
+                   layout, location=(800, 400))
+
+# ---===--- Event LOOP Read and display frames, operate the GUI --- #
 
 while True:
     isTrue, frame = capture.read()
@@ -291,8 +306,18 @@ while True:
         except Exception as e:
             print(e)
 
-    cv2.imshow('Frame', frame)
+
     cv2.imshow('Warped', warped)
+
+    event, values = window.read(timeout=20)
+    imgbytes = cv2.imencode('.png', frame)[1].tobytes()  # ditto
+    window['image'].update(data=imgbytes)
+
+    if event == 'Exit' or event == sg.WIN_CLOSED:
+        break
+
+    if event == 'Capture board':
+        print("gay")
 
     if (cv2.waitKey(20) & 0xFF == ord('d')):
         break
