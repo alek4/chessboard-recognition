@@ -3,6 +3,7 @@ import cv2
 import imutils
 from imutils import perspective
 import PySimpleGUI as sg
+from classes.Cell import Cell
 
 
 def computeImage(frame):
@@ -230,7 +231,6 @@ def warpImage(frame, tl, tr, br, bl):
 
     srcPts = np.float32([[tl[0], tl[1]], [tr[0], tr[1]], [bl[0], bl[1]], [br[0], br[1]]])
     dstPts = np.float32([[0,0], [width, 0], [0, height], [width, height]])
-    # warped = perspective.four_point_transform(frame, pts)
 
     matrix = cv2.getPerspectiveTransform(srcPts, dstPts)
     output = cv2.warpPerspective(frame, matrix, (width, height))
@@ -238,10 +238,41 @@ def warpImage(frame, tl, tr, br, bl):
     return output
 
 
+def saveBoardStatus(points):
+    pointsMatrix = np.empty((9, 9), object)
+    cellMatrix = []
+
+    points = sorted(points, key=lambda k: k[1])
+
+    for idx, p in enumerate(points):
+        row = idx // 9
+        col = idx % 9
+        pointsMatrix[row][col] = p
+
+    for idx, row in enumerate(pointsMatrix):
+        np.sort(row, axis=0)
+        pointsMatrix[idx] = row
+
+    j = 0
+    while j + 1 <= 8:
+        i = 0
+        row = []
+        while i + 1 <= 8:
+            cell = Cell(pointsMatrix[i][j], pointsMatrix[i+1][j], pointsMatrix[i+1][j+1], pointsMatrix[i][j+1])
+            row.append(cell)
+            i += 1
+        j += 1
+        cellMatrix.append(row)
+
+    return cellMatrix
+
+
 capture = cv2.VideoCapture(0)
 nline = 7
 ncol = 7
 font = cv2.FONT_HERSHEY_COMPLEX
+boardFound = False
+board = []
 
 sg.theme('Black')
 
@@ -255,57 +286,64 @@ layout = [[sg.Text('Board detection', size=(40, 1), justification='center', font
 window = sg.Window('Chess board detection system',
                    layout, location=(800, 400))
 
-# ---===--- Event LOOP Read and display frames, operate the GUI --- #
+
 
 while True:
     isTrue, frame = capture.read()
 
-    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
+    if not boardFound:
+        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 
-    imgFiltered = computeImage(frame)
+        imgFiltered = computeImage(frame)
 
-    ret, corners = cv2.findChessboardCorners(imgFiltered, (nline, ncol), flags=cv2.CALIB_CB_ADAPTIVE_THRESH)
+        ret, corners = cv2.findChessboardCorners(imgFiltered, (nline, ncol), flags=cv2.CALIB_CB_ADAPTIVE_THRESH)
 
-    if ret:
+        if ret:
 
-        corners = cv2.cornerSubPix(imgFiltered, corners, (11, 11), (-1, -1), criteria)
-        corners_int = corners.astype(int)
-        corners_final = corners_int.reshape(49, 2)
+            corners = cv2.cornerSubPix(imgFiltered, corners, (11, 11), (-1, -1), criteria)
+            corners_int = corners.astype(int)
+            corners_final = corners_int.reshape(49, 2)
 
-        try:
-            (tl, tr, br, bl) = getInnerVertices(corners_final)
-            innerTL = tl
+            try:
+                (tl, tr, br, bl) = getInnerVertices(corners_final)
+                innerTL = tl
 
-            cornersMatrix = create7x7CornersMatrix(corners_final)
+                cornersMatrix = create7x7CornersMatrix(corners_final)
 
-            (tl, tr, br, bl) = getOuterVertices(cornersMatrix, tl, tr, br, bl)
-            blank = np.zeros((frame.shape[0], frame.shape[1], 1), dtype="uint8")
-            horizontalLines, verticalLines = getLines(blank, cornersMatrix, tl, tr, br, bl, innerTL)
+                (tl, tr, br, bl) = getOuterVertices(cornersMatrix, tl, tr, br, bl)
+                blank = np.zeros((frame.shape[0], frame.shape[1], 1), dtype="uint8")
+                horizontalLines, verticalLines = getLines(blank, cornersMatrix, tl, tr, br, bl, innerTL)
 
-            intersections = []
-            for hLines in horizontalLines:
-                for vLines in verticalLines:
-                    try:
-                        intersections.append(line_intersection(hLines, vLines))
-                    except:
-                        pass
+                intersections = []
+                for hLines in horizontalLines:
+                    for vLines in verticalLines:
+                        try:
+                            intersections.append(line_intersection(hLines, vLines))
+                        except:
+                            pass
 
-            warped = warpImage(frame, tl, tr, br, bl)
+                warped = warpImage(frame, tl, tr, br, bl)
 
-            for point in intersections:
-                cv2.circle(frame, (int(point[0]), int(point[1])), 5, (255, 0, 0), -1)
+                for point in intersections:
+                    cv2.circle(frame, (int(point[0]), int(point[1])), 5, (255, 0, 0), -1)
 
-                # for row in range(0, 7):
-                #     for column in range(0, 7):
-                #         x = cornersMatrix[row][column][0]
-                #         y = cornersMatrix[row][column][1]
-                #         cv2.circle(frame, (x, y), 5, (255, 0, 0), -1)
-                #         cv2.putText(frame, "(" + str(row) + "," + str(column) + ")",
-                #                     (cornersMatrix[row][column][0], cornersMatrix[row][column][1]), font, 0.5, (0, 0, 0), 2,
-                #                     cv2.LINE_AA)
-        except Exception as e:
-            print(e)
-
+                    # for row in range(0, 7):
+                    #     for column in range(0, 7):
+                    #         x = cornersMatrix[row][column][0]
+                    #         y = cornersMatrix[row][column][1]
+                    #         cv2.circle(frame, (x, y), 5, (255, 0, 0), -1)
+                    #         cv2.putText(frame, "(" + str(row) + "," + str(column) + ")",
+                    #                     (cornersMatrix[row][column][0], cornersMatrix[row][column][1]), font, 0.5, (0, 0, 0), 2,
+                    #                     cv2.LINE_AA)
+            except Exception as e:
+                print(e)
+    else:
+        for row in board:
+            for cell in row:
+                cv2.line(frame, cell.tl, cell.tr, (255, 0, 255), 2)
+                cv2.line(frame, cell.tl, cell.bl, (255, 0, 255), 2)
+                cv2.line(frame, cell.bl, cell.br, (255, 0, 255), 2)
+                cv2.line(frame, cell.br, cell.tr, (255, 0, 255), 2)
 
     cv2.imshow('Warped', warped)
 
@@ -317,7 +355,8 @@ while True:
         break
 
     if event == 'Capture board':
-        print("gay")
+        board = saveBoardStatus(intersections)
+        boardFound = True
 
     if (cv2.waitKey(20) & 0xFF == ord('d')):
         break
