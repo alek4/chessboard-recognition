@@ -173,16 +173,17 @@ def getLines(frame, cornersMatrix, tl, tr, br, bl, innerTL):
 
     # here we divide the chess board's borders based on innerTL indexes in the cornersMatrix -> This solution sucks
 
+    horizonalLines.append([tl, tr])
+    verticalLines.append([tl, bl])
+    horizonalLines.append([bl, br])
+    verticalLines.append([br, tr])
+
     if cornersMatrix[6][0] == innerTL:
         verticalLines.append([tl, tr])
         horizonalLines.append([tl, bl])
         verticalLines.append([bl, br])
         horizonalLines.append([br, tr])
-    else:
-        horizonalLines.append([tl, tr])
-        verticalLines.append([tl, bl])
-        horizonalLines.append([bl, br])
-        verticalLines.append([br, tr])
+
 
     # then we gather the other lines and we divide them
     for i in range(0, 7):
@@ -223,6 +224,19 @@ def line_intersection(line1, line2):
     return x, y
 
 
+def warpImage(frame, tl, tr, br, bl):
+    width, height = 400, 400
+
+    srcPts = np.float32([[tl[0], tl[1]], [tr[0], tr[1]], [bl[0], bl[1]], [br[0], br[1]]])
+    dstPts = np.float32([[0,0], [width, 0], [0, height], [width, height]])
+    # warped = perspective.four_point_transform(frame, pts)
+
+    matrix = cv2.getPerspectiveTransform(srcPts, dstPts)
+    output = cv2.warpPerspective(frame, matrix, (width, height))
+
+    return output
+
+
 capture = cv2.VideoCapture(0)
 nline = 7
 ncol = 7
@@ -261,6 +275,8 @@ while True:
                     except:
                         pass
 
+            warped = warpImage(frame, tl, tr, br, bl)
+
             for point in intersections:
                 cv2.circle(frame, (int(point[0]), int(point[1])), 5, (255, 0, 0), -1)
 
@@ -276,6 +292,7 @@ while True:
             print(e)
 
     cv2.imshow('Frame', frame)
+    cv2.imshow('Warped', warped)
 
     if (cv2.waitKey(20) & 0xFF == ord('d')):
         break
