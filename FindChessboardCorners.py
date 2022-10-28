@@ -4,6 +4,7 @@ import imutils
 from imutils import perspective
 import PySimpleGUI as sg
 from classes.Cell import Cell
+import random
 
 
 def computeImage(frame):
@@ -175,34 +176,36 @@ def getLines(frame, cornersMatrix, tl, tr, br, bl, innerTL):
 
     # here we divide the chess board's borders based on innerTL indexes in the cornersMatrix -> This solution sucks
 
-    horizonalLines.append([tl, tr])
-    verticalLines.append([tl, bl])
-    horizonalLines.append([bl, br])
-    verticalLines.append([br, tr])
+
 
     if cornersMatrix[6][0] == innerTL:
         verticalLines.append([tl, tr])
         horizonalLines.append([tl, bl])
         verticalLines.append([bl, br])
         horizonalLines.append([br, tr])
+    else:
+        horizonalLines.append([tl, tr])
+        verticalLines.append([tl, bl])
+        horizonalLines.append([bl, br])
+        verticalLines.append([br, tr])
 
 
     # then we gather the other lines and we divide them
     for i in range(0, 7):
         pt1, pt2 = extend_line(cornersMatrix[i][0], cornersMatrix[i][6])
         pt3, pt4 = extend_line(cornersMatrix[0][i], cornersMatrix[6][i])
-        # cv2.line(frame, pt1, pt2, (255, 255, 255), 2)
-        # cv2.line(frame, pt3, pt4, (255, 255, 255), 2)
+        cv2.line(frame, pt1, pt2, (255, 255, 255), 2)
+        cv2.line(frame, pt3, pt4, (255, 255, 255), 2)
 
         horizonalLines.append([pt1, pt2])
         verticalLines.append([pt3, pt4])
 
-    # cv2.line(frame, tl, tr, (255, 255, 255), 2)
-    # cv2.line(frame, tl, bl, (255, 255, 255), 2)
-    # cv2.line(frame, bl, br, (255, 255, 255), 2)
-    # cv2.line(frame, br, tr, (255, 255, 255), 2)
-    #
-    # cv2.imshow('Frame2', frame)
+    cv2.line(frame, tl, tr, (255, 255, 255), 2)
+    cv2.line(frame, tl, bl, (255, 255, 255), 2)
+    cv2.line(frame, bl, br, (255, 255, 255), 2)
+    cv2.line(frame, br, tr, (255, 255, 255), 2)
+
+    cv2.imshow('Frame2', frame)
 
     return horizonalLines, verticalLines
 
@@ -236,22 +239,44 @@ def warpImage(frame, tl, tr, br, bl):
     output = cv2.warpPerspective(frame, matrix, (width, height))
 
     return output
+def topLeftToBottomRightSorter(points):
 
+    sorted = []
+    remaining = points
+
+    for i in range(9):
+        tl = min(remaining, key=lambda t: t[0] + t[1])
+        tr = max(remaining, key=lambda t: t[0] - t[1])
+        for point in remaining:
+            d = np.cross(tr - tl, point - tl) / np.linalg.norm(tr - tl)
+            if(d < 10):
+                sorted.append(point.tolist())
+                tmp = remaining.tolist()
+                tmp.remove(point.tolist())
+                remaining = np.array(tmp)
+
+    print(len(sorted))
+    return sorted
 
 def saveBoardStatus(points):
     pointsMatrix = np.empty((9, 9), object)
     cellMatrix = []
 
-    points = sorted(points, key=lambda k: k[1])
+    pointsSorted = topLeftToBottomRightSorter(points)
 
-    for idx, p in enumerate(points):
+    for idx, p in enumerate(pointsSorted):
         row = idx // 9
         col = idx % 9
         pointsMatrix[row][col] = p
 
     for idx, row in enumerate(pointsMatrix):
-        np.sort(row, axis=0)
+        row = sorted(row, key=lambda k: k[0])
         pointsMatrix[idx] = row
+
+    for row in pointsMatrix:
+        for p in row:
+            print(int(p[0]),",", int(p[1]), " " , end='')
+        print()
 
     j = 0
     while j + 1 <= 8:
@@ -264,7 +289,9 @@ def saveBoardStatus(points):
         j += 1
         cellMatrix.append(row)
 
+
     return cellMatrix
+
 
 
 capture = cv2.VideoCapture(0)
@@ -315,13 +342,21 @@ while True:
                 horizontalLines, verticalLines = getLines(blank, cornersMatrix, tl, tr, br, bl, innerTL)
 
                 intersections = []
+                print(len(horizontalLines), len(verticalLines))
                 for hLines in horizontalLines:
                     for vLines in verticalLines:
                         try:
                             intersections.append(line_intersection(hLines, vLines))
                         except:
                             pass
+                intersections = np.array(intersections)
+                intersections = intersections.astype(int)
 
+                tl_p = min(intersections, key=lambda t: t[0] + t[1])
+                tr_p = max(intersections, key=lambda t: t[0] - t[1])
+
+                cv2.circle(frame, tl_p, 8, (255, 0, 255), -1)
+                cv2.circle(frame, tr_p, 8, (255, 0, 255), -1)
                 warped = warpImage(frame, tl, tr, br, bl)
 
                 for point in intersections:
@@ -339,13 +374,18 @@ while True:
                 print(e)
     else:
         for row in board:
-            for cell in row:
+            for i, cell in enumerate(row):
                 cv2.line(frame, cell.tl, cell.tr, (255, 0, 255), 2)
                 cv2.line(frame, cell.tl, cell.bl, (255, 0, 255), 2)
                 cv2.line(frame, cell.bl, cell.br, (255, 0, 255), 2)
                 cv2.line(frame, cell.br, cell.tr, (255, 0, 255), 2)
 
-    cv2.imshow('Warped', warped)
+        warped = warpImage(frame, board[0][0].tl, board[0][7].tr, board[7][7].br, board[7][0].bl)
+
+    try:
+        cv2.imshow('Warped', warped)
+    except:
+        pass
 
     event, values = window.read(timeout=20)
     imgbytes = cv2.imencode('.png', frame)[1].tobytes()  # ditto
