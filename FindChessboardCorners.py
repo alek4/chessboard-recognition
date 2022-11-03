@@ -237,6 +237,8 @@ def warpImage(frame, tl, tr, br, bl):
 
     matrix = cv2.getPerspectiveTransform(srcPts, dstPts)
     output = cv2.warpPerspective(frame, matrix, (width, height))
+    output = cv2.rotate(output, cv2.ROTATE_90_CLOCKWISE)
+    output = cv2.flip(output, 1)
 
     return output
 def topLeftToBottomRightSorter(points):
@@ -283,7 +285,8 @@ def saveBoardStatus(points):
         i = 0
         row = []
         while i + 1 <= 8:
-            cell = Cell(pointsMatrix[i][j], pointsMatrix[i+1][j], pointsMatrix[i+1][j+1], pointsMatrix[i][j+1])
+            coords = (chr(i + 65), j + 1)
+            cell = Cell(pointsMatrix[i][j], pointsMatrix[i+1][j], pointsMatrix[i+1][j+1], pointsMatrix[i][j+1], coords)
             row.append(cell)
             i += 1
         j += 1
@@ -307,7 +310,8 @@ sg.theme('Black')
 layout = [[sg.Text('Board detection', size=(40, 1), justification='center', font='Helvetica 20')],
           [sg.Image(filename='', key='image')],
            [sg.Button('Capture board', size=(13, 1), font='Any 14'),
-           sg.Button('Exit', size=(10, 1), font='Helvetica 14'), ]]
+            sg.Button('Exit', size=(10, 1), font='Helvetica 14'),
+            sg.Button('Flip Coords', size=(13, 1), font='Helvetica 14', visible=boardFound),]]
 
 # create the window and show it without the plot
 window = sg.Window('Chess board detection system',
@@ -350,17 +354,11 @@ while True:
                         except:
                             pass
                 intersections = np.array(intersections)
-                intersections = intersections.astype(int)
 
-                tl_p = min(intersections, key=lambda t: t[0] + t[1])
-                tr_p = max(intersections, key=lambda t: t[0] - t[1])
-
-                cv2.circle(frame, tl_p, 8, (255, 0, 255), -1)
-                cv2.circle(frame, tr_p, 8, (255, 0, 255), -1)
                 warped = warpImage(frame, tl, tr, br, bl)
 
-                for point in intersections:
-                    cv2.circle(frame, (int(point[0]), int(point[1])), 5, (255, 0, 0), -1)
+                for point in intersections.astype(int):
+                    cv2.circle(frame, (point[0], point[1]), 5, (255, 0, 0), -1)
 
                     # for row in range(0, 7):
                     #     for column in range(0, 7):
@@ -370,11 +368,14 @@ while True:
                     #         cv2.putText(frame, "(" + str(row) + "," + str(column) + ")",
                     #                     (cornersMatrix[row][column][0], cornersMatrix[row][column][1]), font, 0.5, (0, 0, 0), 2,
                     #                     cv2.LINE_AA)
+                for point in corners_final:
+                    cv2.circle(frame, (point[0], point[1]), 7, (0, 255, 0))
             except Exception as e:
                 print(e)
     else:
         for row in board:
             for i, cell in enumerate(row):
+                cv2.putText(frame, str(cell.coords[0]) + str(cell.coords[1]), cell.center, font, 0.5, (255, 0, 0), 1, cv2.LINE_AA)
                 cv2.line(frame, cell.tl, cell.tr, (255, 0, 255), 2)
                 cv2.line(frame, cell.tl, cell.bl, (255, 0, 255), 2)
                 cv2.line(frame, cell.bl, cell.br, (255, 0, 255), 2)
@@ -396,7 +397,15 @@ while True:
 
     if event == 'Capture board':
         board = saveBoardStatus(intersections)
+        window['Flip Coords'].update(visible=True)
         boardFound = True
+
+    if event == 'Flip Coords':
+        for row in board:
+            for cell in row:
+                letter = chr(((72 + 1) - ord(cell.coords[0])) + 64)
+                num = (8 + 1) - cell.coords[1]
+                cell.coords = (letter, num)
 
     if (cv2.waitKey(20) & 0xFF == ord('d')):
         break
