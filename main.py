@@ -77,8 +77,11 @@ while True:
     if not boardFound:
         intersections = cr.detect(frame, ncol, nline)
 
-        for point in intersections.astype(int):
-            cv2.circle(frame, (point[0], point[1]), 5, (255, 0, 0), -1)
+        try:
+            for point in intersections.astype(int):
+                cv2.circle(frame, (point[0], point[1]), 5, (255, 0, 0), -1)
+        except Exception as e:
+            print(e)
 
     else:
         # for row in board:
@@ -118,16 +121,38 @@ while True:
                 cell.img = pr.getPieceAtCell(cell, frame)
 
     if event == 'Next Move':
-        # for row in board:
-        #     for cell in row:
-        #         score = pr.calcDiff(cell, frame)
-        #
-        #         cv2.putText(frame, str(score), cell.center, font, 0.3, (0, 0, 255), 1, cv2.LINE_AA)
-        #         cv2.imshow("scores", frame)
-        score = pr.calcDiff(board[7][6], frame)
-        # cv2.imshow("diff", diff)
+        cellsWithContextSwitch = []
+        for row in board: #ciclo le celle e se hanno score <90 le metto in un array
+            for cell in row:
 
-        # print("SSIM: {}".format(score))
+                score = pr.calcDiff(cell, frame)
+
+                # cv2.putText(frame, str(score), cell.center, font, 0.3, (0, 0, 255), 1, cv2.LINE_AA)
+
+                if score < 90:
+                    cellsWithContextSwitch.append((cell, score))
+
+        if len(cellsWithContextSwitch) > 0: #in base al numero di celle nell'array scelgo un'opzione, il goal è avere solo due celle selezionate per mossa (sto sistema è temporaneo)
+            if len(cellsWithContextSwitch) > 1:
+                if len(cellsWithContextSwitch) > 2:
+                    cell1 = min(cellsWithContextSwitch, key=lambda e: e[1])
+                    cellsWithContextSwitch.remove(cell1)
+                    cell2 = min(cellsWithContextSwitch, key=lambda e: e[1])
+
+                else:
+                    cell1 = cellsWithContextSwitch[0]
+                    cell2 = cellsWithContextSwitch[1]
+            else:
+                cell1 = cellsWithContextSwitch[0]
+                cell2 = cellsWithContextSwitch[0]
+
+            cv2.rectangle(frame, cell1[0].tl, cell1[0].br, (0, 0, 255), thickness=2)
+            cv2.rectangle(frame, cell2[0].tl, cell2[0].br, (0, 0, 255), thickness=2)
+
+        cv2.imshow("scores", frame)
+
+
+        # score = pr.calcDiff2(board[7][6], frame)
 
     if event == 'Flip Coords':
         for row in board:

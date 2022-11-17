@@ -243,7 +243,6 @@ class ChessBoardRecognition:
                     tmp.remove(point.tolist())
                     remaining = np.array(tmp)
 
-        print(len(sorted))
         return sorted
 
     def detect(self, frame, nline, ncol):

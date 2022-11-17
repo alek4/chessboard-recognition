@@ -1,5 +1,6 @@
 import numpy as np
 import cv2
+from PIL import Image
 from skimage.metrics import structural_similarity as compare_ssim
 import math
 
@@ -53,30 +54,23 @@ class PieceRecognition:
 
     def calcDiff(self, cell, frame):
         new = self.getPieceAtCell(cell, frame)
+        old = cell.img
 
-        gray = cv2.cvtColor(new, cv2.COLOR_BGR2GRAY)
+        height, width, channels = new.shape
+        upper_left = (width // 4, height // 4)
+        bottom_right = (width * 3 // 4, height * 3 // 4)
 
-        dst = cv2.cornerHarris(src=gray, blockSize=3, ksize=3, k=0.01)
+        # cv2.rectangle(new, upper_left, bottom_right, (0, 255, 0), thickness=1)
+        cropOld = old[upper_left[1]: bottom_right[1] + 1, upper_left[0]: bottom_right[0] + 1]
+        cropNew = new[upper_left[1]: bottom_right[1] + 1, upper_left[0]: bottom_right[0] + 1]
 
-        sum = np.sum(dst > 0.01 * dst.max())
-        dst = cv2.dilate(dst, None)
-        new[dst > 0.01 * dst.max()] = [255, 0, 0]
+        grayNew = cv2.cvtColor(cropNew, cv2.COLOR_BGR2GRAY)
+        grayOld = cv2.cvtColor(cropOld, cv2.COLOR_BGR2GRAY)
+        (score, diff) = compare_ssim(grayNew, grayOld, full=True)
 
-        cv2.imshow("ciao", new)
+        cell.img = new
+        # print(score)
+        # cv2.imshow("ciao", cropOld)
+        # cv2.imshow("ciao2", cropNew)
 
-        # print(np.sum(dst > 0.01 * dst.max()))
-
-        # forse funziona
-        # new = self.__removeShadow(new)
-        # old = self.__removeShadow(cell.img)
-        #
-        # grayNew = cv2.cvtColor(new, cv2.COLOR_BGR2GRAY)
-        # grayOld = cv2.cvtColor(old, cv2.COLOR_BGR2GRAY)
-        # (score, diff) = compare_ssim(grayNew, grayOld, full=True)
-        # # diff = (diff * 255).astype("uint8")
-        # edges = self.__filterImage(new)
-
-        # cv2.imshow("edges", edges)
-
-        # return math.ceil(score * 100)
-        return sum
+        return math.ceil(score * 100)
