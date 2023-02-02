@@ -7,11 +7,10 @@ from imutils import perspective
 class ChessBoardRecognition:
     def computeImage(self, frame):
         # This function is used to compute the image to help FindChessBoardCorners find the chess board pattern
-        # pyrDown and pyrUp are used for downscaling and upscaling the image, this helps a bit in removing noises
-        # then we perform a gray color conversion which is required by FindChessBoardCorners
-        pyr = cv2.pyrDown(frame, (frame.shape[1] / 2, frame.shape[0] / 2))
-        pyr = cv2.pyrUp(pyr, (frame.shape[1], frame.shape[0]))
-        gray = cv2.cvtColor(pyr, cv2.COLOR_BGR2GRAY)
+
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gray = cv2.GaussianBlur(gray, (5, 5), 0)
+        gray = cv2.bilateralFilter(gray, 11, 17, 17)
 
         return gray
 
@@ -192,7 +191,7 @@ class ChessBoardRecognition:
         cv2.line(frame, bl, br, (255, 255, 255), 2)
         cv2.line(frame, br, tr, (255, 255, 255), 2)
 
-        cv2.imshow('Frame2', frame)
+        # cv2.imshow('lines', frame)
 
         return horizonalLines, verticalLines
 
@@ -214,18 +213,35 @@ class ChessBoardRecognition:
 
         return x, y
 
-    def warpImage(self, frame, tl, tr, br, bl):
+    def warpImage(self, frame, tl, tr, br, bl, board):
+
+        def fixNegativeValues(point):
+            point[0] = 0 if point[0] == -1 else point[0]
+            point[1] = 0 if point[1] == -1 else point[1]
+            return point
+
         width, height = 400, 400
 
-        srcPts = np.float32([[tl[0], tl[1]], [tr[0], tr[1]], [bl[0], bl[1]], [br[0], br[1]]])
-        dstPts = np.float32([[0, 0], [width, 0], [0, height], [width, height]])
+        srcPts = np.float32([[tl[0], tl[1]], [tr[0], tr[1]], [br[0], br[1]], [bl[0], bl[1]]])
+        dstPts = np.float32([[0, 0], [width, 0], [width, height], [0, height]])
 
         matrix = cv2.getPerspectiveTransform(srcPts, dstPts)
         output = cv2.warpPerspective(frame, matrix, (width, height))
-        output = cv2.rotate(output, cv2.ROTATE_90_CLOCKWISE)
-        output = cv2.flip(output, 1)
 
-        return output
+
+        for row in board:
+            for cell in row:
+                points = np.float32([[cell.tl[0], cell.tl[1]], [cell.tr[0], cell.tr[1]], [cell.br[0], cell.br[1]], [cell.bl[0], cell.bl[1]]])
+                points = points.reshape(4,1,2)
+                warped_points = cv2.perspectiveTransform(points, matrix)
+
+                warped_points = warped_points.reshape(4, 2).astype(int)
+                cell.wtl = fixNegativeValues(warped_points[0])
+                cell.wtr = fixNegativeValues(warped_points[1])
+                cell.wbr = fixNegativeValues(warped_points[2])
+                cell.wbl = fixNegativeValues(warped_points[3])
+
+        return output, board
 
     def topLeftToBottomRightSorter(self, points):
 

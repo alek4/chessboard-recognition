@@ -6,6 +6,10 @@ class Cell(object):
         self.bl = (int(bl[0]), int(bl[1]))
         self.color = color
         self.isEmpty = False
+        self.wtl = None
+        self.wtr = None
+        self.wbr = None
+        self.wbl = None
 
         self.center = self.calculateCentroid()
 
@@ -13,9 +17,16 @@ class Cell(object):
 
         self.img = None
 
+        self.score = None
+
     def calculateCentroid(self):
         cx = (self.tl[0] + self.br[0]) // 2
         cy = (self.tl[1] + self.br[1]) // 2
 
         return (cx, cy)
 
+    def calculateWCentroid(self):
+        cx = (self.wtl[0] + self.wbr[0]) // 2
+        cy = (self.wtl[1] + self.wbr[1]) // 2
+
+        return (cx, cy)

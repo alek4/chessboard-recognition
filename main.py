@@ -34,7 +34,7 @@ def saveBoardStatus(points):
         row = []
         while i + 1 <= 8:
             coords = (chr(i + 65), j + 1)
-            cell = Cell(pointsMatrix[i][j], pointsMatrix[i+1][j], pointsMatrix[i+1][j+1], pointsMatrix[i][j+1], coords, color)
+            cell = Cell(pointsMatrix[j][i], pointsMatrix[j][i+1], pointsMatrix[j+1][i+1], pointsMatrix[j+1][i], coords, color)
             color = 1 - color
             row.append(cell)
             i += 1
@@ -73,6 +73,7 @@ window = sg.Window('Chess board detection system',
 
 while True:
     isTrue, frame = capture.read()
+    frameCopy = frame.copy()
 
     if not boardFound:
         intersections = cr.detect(frame, ncol, nline)
@@ -86,16 +87,14 @@ while True:
     else:
         # for row in board:
         #     for i, cell in enumerate(row):
-                # cv2.putText(frame, str(cell.coords[0]) + str(cell.coords[1]), cell.center, font, 0.2, (255, 0, 0), 1, cv2.LINE_AA)
-                # cv2.putText(frame, str(cell.color), cell.center, font, 0.2, (255, 0, 0), 1, cv2.LINE_AA)
+        #         cv2.putText(frame, str(cell.coords[0]) + str(cell.coords[1]), cell.center, font, 0.2, (255, 0, 0), 1, cv2.LINE_AA)
+        #       cv2.putText(frame, str(cell.color), cell.center, font, 0.2, (255, 0, 0), 1, cv2.LINE_AA)
                 # cv2.line(frame, cell.tl, cell.tr, (255, 0, 255), 2)
                 # cv2.line(frame, cell.tl, cell.bl, (255, 0, 255), 2)
                 # cv2.line(frame, cell.bl, cell.br, (255, 0, 255), 2)
                 # cv2.line(frame, cell.br, cell.tr, (255, 0, 255), 2)
 
-        warped = cr.warpImage(frame, board[0][0].tl, board[0][7].tr, board[7][7].br, board[7][0].bl)
-
-        pr.getPieceAtCell(board[7][7], frame)
+        warped, board = cr.warpImage(frame, board[0][0].tl, board[0][7].tr, board[7][7].br, board[7][0].bl, board.copy())
 
     try:
         cv2.imshow('Warped', warped)
@@ -115,44 +114,24 @@ while True:
         window['Next Move'].update(visible=True)
         boardFound = True
 
+        warped, board = cr.warpImage(frameCopy, board[0][0].tl, board[0][7].tr, board[7][7].br, board[7][0].bl, board.copy())
+
+        # try:
+        oldBoardFrame = warped
 
         for row in board:
             for cell in row:
-                cell.img = pr.getPieceAtCell(cell, frame)
+                cell.img = pr.getPieceAtCell(cell, warped)
 
     if event == 'Next Move':
-        cellsWithContextSwitch = []
-        for row in board: #ciclo le celle e se hanno score <90 le metto in un array
+        pr.changesDetection(oldBoardFrame, warped, board)
+
+        oldBoardFrame = warped
+        for row in board:
             for cell in row:
-
-                score = pr.calcDiff(cell, frame)
-
-                # cv2.putText(frame, str(score), cell.center, font, 0.3, (0, 0, 255), 1, cv2.LINE_AA)
-
-                if score < 90:
-                    cellsWithContextSwitch.append((cell, score))
-
-        if len(cellsWithContextSwitch) > 0: #in base al numero di celle nell'array scelgo un'opzione, il goal è avere solo due celle selezionate per mossa (sto sistema è temporaneo)
-            if len(cellsWithContextSwitch) > 1:
-                if len(cellsWithContextSwitch) > 2:
-                    cell1 = min(cellsWithContextSwitch, key=lambda e: e[1])
-                    cellsWithContextSwitch.remove(cell1)
-                    cell2 = min(cellsWithContextSwitch, key=lambda e: e[1])
-
-                else:
-                    cell1 = cellsWithContextSwitch[0]
-                    cell2 = cellsWithContextSwitch[1]
-            else:
-                cell1 = cellsWithContextSwitch[0]
-                cell2 = cellsWithContextSwitch[0]
-
-            cv2.rectangle(frame, cell1[0].tl, cell1[0].br, (0, 0, 255), thickness=2)
-            cv2.rectangle(frame, cell2[0].tl, cell2[0].br, (0, 0, 255), thickness=2)
-
-        cv2.imshow("scores", frame)
+                cell.img = pr.getPieceAtCell(cell, warped)
 
 
-        # score = pr.calcDiff2(board[7][6], frame)
 
     if event == 'Flip Coords':
         for row in board:
